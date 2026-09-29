@@ -402,7 +402,6 @@ function serviceClientsView(){
   };
 
   const periodEvents=allServiceEvents.filter(e=>matchPeriod(e.event_date));
-  const periodEventIds=new Set(periodEvents.map(e=>e.id));
   const allSelectedEventIds=new Set(allServiceEvents.map(e=>e.id));
 
   const closedEvents=periodEvents.filter(e=>isClosedLead(e.status));
@@ -417,31 +416,22 @@ function serviceClientsView(){
     )
     .reduce((s,x)=>s+moneyNumber(x.amount),0);
 
-  const receivedForPeriodEvents=state.financialEntries
-    .filter(x=>
-      periodEventIds.has(x.event_id) &&
-      x.entry_type==='Entrada' &&
-      x.status==='Recebido'
-    )
-    .reduce((s,x)=>s+moneyNumber(x.amount),0);
+  const receivable=periodEvents.reduce((total,event)=>{
+    const received=state.financialEntries
+      .filter(x=>x.event_id===event.id&&x.entry_type==='Entrada'&&x.status==='Recebido')
+      .reduce((sum,x)=>sum+moneyNumber(x.amount),0);
+    return total+Math.max(moneyNumber(event.contracted_value)-received,0);
+  },0);
 
-  const receivable=Math.max(contracted-receivedForPeriodEvents,0);
+  const meetingsInPeriod=state.companyMeetings.filter(m=>
+    allSelectedEventIds.has(m.event_id)&&matchPeriod(m.meeting_date)
+  );
 
-  const meetingsInPeriod=state.companyMeetings.filter(m=>{
-    const event=state.companyEvents.find(e=>e.id===m.event_id);
-    const sectorOk=!event||selectedSector==='Todos'||event.service_sector===selectedSector;
-    return sectorOk&&matchPeriod(m.meeting_date);
-  });
-
-  const upcoming=[...state.companyMeetings]
-    .filter(m=>{
-      const event=state.companyEvents.find(e=>e.id===m.event_id);
-      const sectorOk=!event||selectedSector==='Todos'||event.service_sector===selectedSector;
-      return sectorOk&&m.meeting_date>=today;
-    })
+  const upcoming=meetingsInPeriod
+    .filter(m=>m.meeting_date>=today)
     .sort((a,b)=>(String(a.meeting_date)+String(a.meeting_time||'')).localeCompare(String(b.meeting_date)+String(b.meeting_time||'')));
 
-  const items=allServiceEvents
+  const items=periodEvents
     .filter(e=>!search||[e.client_name,e.phone,e.venue,e.service_sector,e.notes].some(v=>String(v||'').toLowerCase().includes(search)))
     .sort((a,b)=>String(a.event_date||'9999-12-31').localeCompare(String(b.event_date||'9999-12-31'))||String(a.client_name||'').localeCompare(String(b.client_name||'')));
 
@@ -1007,7 +997,7 @@ function openFinancialEntryEditor(x){
 
   const preselectedEvent =
     x?.event_id ||
-    (route().startsWith('eventos/') ? route().split('/')[1] : '');
+    ((route().startsWith('eventos/') || route().startsWith('clientes-servicos/')) ? route().split('/')[1] : '');
 
   const body =
     field('Data','entry_date',x?.entry_date||new Date().toISOString().slice(0,10),'date') +
