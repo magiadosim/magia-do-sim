@@ -375,9 +375,13 @@ function crmView(){
 function serviceClientsView(){
   const search=String(state.serviceClientSearch||'').trim().toLowerCase();
   const today=new Date().toISOString().slice(0,10);
-  const selectedSector=state.serviceClientFilter;
+  const SERVICE_CLIENT_SECTORS=['Decoração','Serviços terceirizados'];
+  const selectedSector=SERVICE_CLIENT_SECTORS.includes(state.serviceClientFilter)
+    ? state.serviceClientFilter
+    : 'Todos';
 
   const allServiceEvents=state.companyEvents
+    .filter(e=>SERVICE_CLIENT_SECTORS.includes(e.service_sector))
     .filter(e=>selectedSector==='Todos'||e.service_sector===selectedSector);
 
   const years=[...new Set([
@@ -461,9 +465,9 @@ function serviceClientsView(){
       <section class="service-dashboard">
         <div class="service-dashboard-head">
           <div>
-            <span class="service-dashboard-eyebrow">DASHBOARD DE SERVIÇOS</span>
+            <span class="service-dashboard-eyebrow">DASHBOARD DE OUTROS SERVIÇOS</span>
             <h2>Visão do período</h2>
-            <p>Indicadores apenas dos clientes cadastrados nesta área.</p>
+            <p>Somente Decoração e Serviços terceirizados. Assessoria completa fica fora deste painel.</p>
           </div>
           <div class="service-dashboard-filters">
             <div class="field compact-field">
@@ -519,7 +523,7 @@ function serviceClientsView(){
       <div class="service-client-tools">
         <input class="input" id="service-client-search" type="search" placeholder="Buscar cliente, telefone ou local..." value="${esc(state.serviceClientSearch)}">
         <div class="filters service-client-filters">
-          ${['Todos',...COMPANY_SECTORS].map(s=>`<button class="filter-btn ${state.serviceClientFilter===s?'active':''}" data-service-client-filter="${esc(s)}">${esc(s)}</button>`).join('')}
+          ${['Todos',...SERVICE_CLIENT_SECTORS].map(s=>`<button class="filter-btn ${selectedSector===s?'active':''}" data-service-client-filter="${esc(s)}">${esc(s)}</button>`).join('')}
         </div>
       </div>
 
@@ -876,7 +880,12 @@ function openCompanyEventEditor(e,asServiceClient=false){
     field('Data do evento','event_date',e?.event_date||'','date') +
     field('Horário','event_time',(e?.event_time||'').slice(0,5),'time') +
     field('Local','venue',e?.venue||'') +
-    selectField('Setor / serviço','service_sector',COMPANY_SECTORS,e?.service_sector||'Assessoria completa') +
+    selectField(
+      'Setor / serviço',
+      'service_sector',
+      serviceClientMode?['Decoração','Serviços terceirizados']:COMPANY_SECTORS,
+      e?.service_sector||(serviceClientMode?'Decoração':'Assessoria completa')
+    ) +
     selectField('Status','status',CRM_STATUSES,e?.status||'Cliente interessado') +
     field('Valor da proposta','proposal_value',e?.proposal_value||0,'number','step="0.01"') +
     field('Valor contratado','contracted_value',e?.contracted_value||0,'number','step="0.01"') +
