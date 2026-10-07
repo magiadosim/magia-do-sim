@@ -96,6 +96,7 @@
             ['cerimonial','Cerimonial','calendar'],
             ['organizacao-casa','Organização da casa','home'],
             ['convidados','Lista de convidados','users'],
+            ['presentes','Lista de presentes','heart'],
             ['documentos','Documentos','file'],
             ['financeiro','Financeiro do casamento','money'],
             ['compras','Compras','money'],
@@ -124,6 +125,7 @@
           ['cerimonial','Cerimonial','calendar'],
           ['organizacao-casa','Organização da casa','home'],
           ['convidados','Lista de convidados','users'],
+            ['presentes','Lista de presentes','heart'],
           ['documentos','Documentos','file'],
           ['reunioes','Reuniões','meeting']
         ]

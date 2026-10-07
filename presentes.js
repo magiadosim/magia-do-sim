@@ -1,0 +1,18 @@
+(async function(){
+'use strict';
+const sb=window.supabase.createClient('https://yruwsmjmnssovojsdbah.supabase.co','sb_publishable_54PNMN8dAUNOliQ1tt1hQg_CVZRwXXw');
+const app=document.getElementById('rsvp-app');const code=new URLSearchParams(location.search).get('code');
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money=v=>Number(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+const brand='<div class="rsvp-brand"><img src="assets/logo-oficial.png" alt="A Magia do Sim"><strong>A Magia do Sim</strong></div>';
+function unavailable(message){app.innerHTML=`<div class="rsvp-shell">${brand}<section class="rsvp-card"><div class="rsvp-content"><h2>Lista de presentes indisponível</h2><p>${esc(message)}</p></div></section></div>`;}
+if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(code||'')){unavailable('Confira o link enviado pelos noivos.');return;}
+try{
+ const {data,error}=await sb.rpc('gift_get_page',{wedding_code:code});if(error)throw error;
+ if(!data){unavailable('A lista ainda não foi publicada. Consulte os noivos.');return;}
+ const date=data.wedding_date?new Date(data.wedding_date+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'}):'Data a definir';
+ app.innerHTML=`<div class="rsvp-shell">${brand}<section class="rsvp-card"><div class="rsvp-hero"><span class="rsvp-eyebrow">LISTA DE PRESENTES</span><h1>${esc(data.couple_name)}</h1><p>${esc(date)}</p></div><div class="rsvp-content"><h2>Um carinho para nossa nova etapa ♡</h2><p>Escolha um presente simbólico e contribua por Pix diretamente para os noivos.</p><div class="gift-grid">${data.gifts.length?data.gifts.map(g=>`<article class="gift-card"><span class="gift-symbol" aria-hidden="true">♡</span><h3>${esc(g.name)}</h3><p>${esc(g.description)}</p><strong>${money(g.amount)}</strong><button class="rsvp-btn" data-gift="${esc(g.id)}">Presentear</button></article>`).join(''):'<p>Os noivos estão preparando a lista de presentes.</p>'}</div><section id="gift-payment" class="gift-payment" hidden tabindex="-1"><h2 id="gift-choice"></h2><p>Abra o aplicativo do seu banco, selecione Pix e use a chave abaixo. Informe o valor escolhido e confira o favorecido antes de transferir.</p><label for="pix-key">Chave Pix</label><input class="rsvp-input" id="pix-key" readonly value="${esc(data.pix_key)}"><p>Favorecido: <strong>${esc(data.recipient_name)}</strong></p><button class="rsvp-btn" id="copy-pix">Copiar chave Pix</button><p id="copy-status" role="status"></p><p class="rsvp-hint">Esta página não processa nem confirma transferências. O presente é uma contribuição simbólica, sem envio de produto.</p></section></div></section><p class="rsvp-privacy">A Magia do Sim • Onde os sonhos se tornam alianças.</p></div>`;
+ document.querySelectorAll('[data-gift]').forEach(b=>b.onclick=()=>{const g=data.gifts.find(g=>g.id===b.dataset.gift);document.getElementById('gift-choice').textContent=`${g.name} — ${money(g.amount)}`;const panel=document.getElementById('gift-payment');panel.hidden=false;panel.scrollIntoView({behavior:'smooth',block:'center'});panel.focus({preventScroll:true});});
+ document.getElementById('copy-pix').onclick=async()=>{const status=document.getElementById('copy-status');try{await navigator.clipboard.writeText(data.pix_key);status.textContent='Chave copiada. Cole no aplicativo do seu banco.';}catch{document.getElementById('pix-key').select();status.textContent='Selecione e copie a chave acima.';}};
+}catch(error){console.error(error);unavailable('Não foi possível carregar agora. Tente novamente em alguns instantes.');}
+})();
