@@ -1,6 +1,6 @@
 (async function(){
 'use strict';
-const app=document.getElementById('invitation-app'),code=new URLSearchParams(location.search).get('code');
+const app=document.getElementById('invitation-app'),code=new URLSearchParams(location.search).get('code')||document.documentElement.dataset.weddingCode;
 const fail=text=>{app.innerHTML='<div class="invite-loading"><h1>Convite indisponível</h1><p></p></div>';app.querySelector('p').textContent=text;};
 if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(code||'')){fail('Confira o link enviado pelos noivos.');return;}
 try{
