@@ -95,6 +95,9 @@ function guestListView(){
       <div class="guest-actions">
         <button class="btn-secondary" id="copy-rsvp-link">Copiar link RSVP</button>
         <button class="btn-secondary" id="open-rsvp-link">Ver página RSVP</button>
+        <button class="btn-secondary" id="toggle-guest-registration">${state.wedding?.guest_registration_code?'Encerrar cadastro aberto':'Ativar cadastro aberto'}</button>
+        ${state.wedding?.guest_registration_code?'<button class="btn-secondary" id="copy-guest-registration">Copiar link de cadastro aberto</button>':''}
+        <button class="btn-secondary" id="refresh-guests">Atualizar lista</button>
         <button class="btn-primary" id="new-guest">+ Convidado</button>
       </div>
     </div>
@@ -147,6 +150,8 @@ function guestListView(){
     </div>
 
     <div class="card card-pad guest-help-card">
+      <h2>Cadastro aberto</h2><p class="small muted">Ative para compartilhar um link em que cada convidado preenche seu nome, telefone, família, adulto ou criança e presença, sem cadastro prévio e sem login. Os registros entram nesta lista. Use Atualizar lista para consultar novas respostas. Encerre quando quiser interromper os cadastros.</p>
+      ${state.wedding?.guest_registration_code?`<div class="guest-public-link">${esc(guestRegistrationUrl())}</div>`:''}
       <div class="card-title"><h2>Como funciona o RSVP</h2></div>
       <p class="small muted">Compartilhe o link de confirmação com os convidados. Eles pesquisam o próprio nome, visualizam os integrantes do convite/família e informam quem irá ou não ao casamento. As respostas entram automaticamente neste painel.</p>
       ${state.wedding?.rsvp_code?`<div class="guest-public-link">${esc(guestRsvpUrl())}</div>`:'<div class="badge warning">O link será liberado após a atualização do banco.</div>'}
@@ -378,4 +383,39 @@ bindView = function(r){
 
   const exportBtn=document.getElementById('export-guests');
   if(exportBtn) exportBtn.onclick=exportGuestList;
+};
+
+
+function guestRegistrationUrl(){
+  const url=new URL('rsvp.html',location.href);
+  url.search='';url.hash='';
+  url.searchParams.set('register',state.wedding.guest_registration_code);
+  return url.toString();
+}
+const registrationBaseBindView=bindView;
+bindView=function(r){
+  registrationBaseBindView(r);
+  const toggle=document.getElementById('toggle-guest-registration');
+  if(toggle) toggle.onclick=async()=>{
+    toggle.disabled=true;
+    const code=state.wedding.guest_registration_code?null:crypto.randomUUID();
+    try{
+      const {data,error}=await sb.from('weddings').update({guest_registration_code:code}).eq('id',state.wedding.id).select('guest_registration_code').single();
+      if(error) throw error;
+      state.wedding.guest_registration_code=data.guest_registration_code;
+      toast(code?'Cadastro aberto ativado. Copie o link para compartilhar.':'Cadastro aberto encerrado.');
+      render();
+    }catch(error){console.error(error);toast('Não foi possível alterar o cadastro aberto.');toggle.disabled=false;}
+  };
+  const copy=document.getElementById('copy-guest-registration');
+  if(copy) copy.onclick=async()=>{
+    const url=guestRegistrationUrl();
+    try{await navigator.clipboard.writeText(url);toast('Link de cadastro aberto copiado.');}
+    catch{window.prompt('Copie o link de cadastro aberto:',url);}
+  };
+  const refresh=document.getElementById('refresh-guests');
+  if(refresh) refresh.onclick=async()=>{
+    refresh.disabled=true;
+    await loadWeddingData(state.wedding.id);render();
+  };
 };

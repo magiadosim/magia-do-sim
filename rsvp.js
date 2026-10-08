@@ -5,7 +5,8 @@ const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
 const app=document.getElementById('rsvp-app');
 const toastRoot=document.getElementById('rsvp-toast');
 const params=new URLSearchParams(location.search);
-const weddingCode=params.get('code')||'';
+const registrationCode=params.get('register')||'';
+const weddingCode=registrationCode||params.get('code')||'';
 
 let wedding=null;
 let searchResults=[];
@@ -38,7 +39,7 @@ async function loadWedding(){
     renderInvalid();
     return;
   }
-  const {data,error}=await sb.rpc('rsvp_get_wedding',{wedding_code:weddingCode});
+  const {data,error}=await sb.rpc(registrationCode?'guest_registration_get_wedding':'rsvp_get_wedding',registrationCode?{registration_code:registrationCode}:{wedding_code:weddingCode});
   if(error){
     console.error(error);
     renderInvalid();
@@ -49,7 +50,8 @@ async function loadWedding(){
     renderInvalid();
     return;
   }
-  renderSearch();
+  if(registrationCode) renderRegistration();
+  else renderSearch();
 }
 
 function brand(){
@@ -230,4 +232,36 @@ function renderSuccess(){
   document.getElementById('rsvp-search-again').onclick=()=>renderSearch();
 }
 
+function renderRegistration(){
+  const requestId=crypto.randomUUID();
+  app.innerHTML=`<div class="rsvp-shell">${brand()}<section class="rsvp-card">${hero()}
+    <div class="rsvp-content"><h2>Preencha seus dados ♡</h2><p>Registre uma pessoa por vez. Para cadastrar outra pessoa da família, envie um novo formulário.</p>
+    <form id="registration-form">
+      <p><label for="register-name">Nome completo *</label><input class="rsvp-input" id="register-name" name="full_name" autocomplete="name" minlength="3" maxlength="150" required></p>
+      <p><label for="register-phone">Telefone / WhatsApp</label><input class="rsvp-input" id="register-phone" name="phone" type="tel" autocomplete="tel" maxlength="30"></p>
+      <p><label for="register-group">Família / grupo (opcional)</label><input class="rsvp-input" id="register-group" name="group_name" maxlength="100" placeholder="Ex.: Família Silva"></p>
+      <p><label for="register-age">Adulto ou criança *</label><select class="rsvp-input" id="register-age" name="age_group" required><option value="adult">Adulto</option><option value="child">Criança</option></select></p>
+      <p><label for="register-status">Você estará presente? *</label><select class="rsvp-input" id="register-status" name="status" required><option value="">Selecione</option><option value="confirmed">Sim, estarei presente</option><option value="declined">Não poderei ir</option></select></p>
+      <p class="rsvp-privacy">Seus dados serão usados pelos noivos e pela assessoria para organizar este evento.</p>
+      <button class="rsvp-btn" type="submit">Enviar cadastro</button><p id="registration-error" role="alert"></p>
+    </form></div></section></div>`;
+  const form=document.getElementById('registration-form');
+  form.onsubmit=async e=>{
+    e.preventDefault();
+    const button=form.querySelector('button');
+    const errorRoot=document.getElementById('registration-error');
+    const guest=Object.fromEntries(new FormData(form).entries());
+    guest.full_name=guest.full_name.trim();
+    if(guest.full_name.length<3){errorRoot.textContent='Informe seu nome completo.';return;}
+    button.disabled=true;button.textContent='Enviando...';errorRoot.textContent='';
+    try{
+      const {data,error}=await sb.rpc('guest_registration_submit',{registration_code:registrationCode,request_id:requestId,guest});
+      if(error||Number(data)!==1) throw error||new Error('Falha ao salvar');
+      app.innerHTML=`<div class="rsvp-shell">${brand()}<section class="rsvp-card">${hero()}<div class="rsvp-content rsvp-success"><div class="heart">♡</div><h2>Cadastro enviado!</h2><p>Seus dados e sua resposta foram enviados à organização do casamento.</p><button class="rsvp-secondary" id="register-another">Cadastrar outra pessoa</button></div></section></div>`;
+      document.getElementById('register-another').onclick=renderRegistration;
+    }catch(error){console.error(error);errorRoot.textContent='Não foi possível enviar. Tente novamente ou confira com a assessoria se o cadastro está aberto.';button.disabled=false;button.textContent='Enviar cadastro';}
+  };
+}
+
 loadWedding();
+
