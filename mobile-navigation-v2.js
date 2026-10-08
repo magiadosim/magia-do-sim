@@ -98,6 +98,7 @@
             ['convidados','Lista de convidados','users'],
             ['presentes','Lista de presentes','heart'],
             ['manual-convidado','Manual do Convidado','calendar'],
+            ['convite','Convite digital','heart'],
             ['documentos','Documentos','file'],
             ['financeiro','Financeiro do casamento','money'],
             ['compras','Compras','money'],
@@ -128,6 +129,7 @@
           ['convidados','Lista de convidados','users'],
             ['presentes','Lista de presentes','heart'],
             ['manual-convidado','Manual do Convidado','calendar'],
+            ['convite','Convite digital','heart'],
           ['documentos','Documentos','file'],
           ['reunioes','Reuniões','meeting']
         ]
