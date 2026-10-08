@@ -234,32 +234,62 @@ function renderSuccess(){
 
 function renderRegistration(){
   const requestId=crypto.randomUUID();
+  const companions=new Map();
+  let companionSequence=0;
   app.innerHTML=`<div class="rsvp-shell">${brand()}<section class="rsvp-card">${hero()}
-    <div class="rsvp-content"><h2>Preencha seus dados ♡</h2><p>Registre uma pessoa por vez. Para cadastrar outra pessoa da família, envie um novo formulário.</p>
+    <div class="rsvp-content"><h2>Preencha seus dados ♡</h2><p>Preencha seus dados e adicione os acompanhantes que irão com você.</p>
     <form id="registration-form">
       <p><label for="register-name">Nome completo *</label><input class="rsvp-input" id="register-name" name="full_name" autocomplete="name" minlength="3" maxlength="150" required></p>
       <p><label for="register-phone">Telefone / WhatsApp</label><input class="rsvp-input" id="register-phone" name="phone" type="tel" autocomplete="tel" maxlength="30"></p>
       <p><label for="register-group">Família / grupo (opcional)</label><input class="rsvp-input" id="register-group" name="group_name" maxlength="100" placeholder="Ex.: Família Silva"></p>
       <p><label for="register-age">Adulto ou criança *</label><select class="rsvp-input" id="register-age" name="age_group" required><option value="adult">Adulto</option><option value="child">Criança</option></select></p>
       <p><label for="register-status">Você estará presente? *</label><select class="rsvp-input" id="register-status" name="status" required><option value="">Selecione</option><option value="confirmed">Sim, estarei presente</option><option value="declined">Não poderei ir</option></select></p>
+      <section aria-label="Acompanhantes"><h3>Acompanhantes</h3><div id="registration-companions"></div><button class="rsvp-secondary" type="button" id="add-companion">+ Adicionar acompanhante</button><p id="companion-limit" role="status"></p></section>
       <p class="rsvp-privacy">Seus dados serão usados pelos noivos e pela assessoria para organizar este evento.</p>
       <button class="rsvp-btn" type="submit">Enviar cadastro</button><p id="registration-error" role="alert"></p>
     </form></div></section></div>`;
   const form=document.getElementById('registration-form');
+  const addCompanion=document.getElementById('add-companion');
+  addCompanion.onclick=()=>{
+    const index=++companionSequence;
+    const row=document.createElement('fieldset');
+    row.className='rsvp-group';
+    row.innerHTML=`<legend>Acompanhante</legend>
+      <p><label for="companion-name-${index}">Nome completo *</label><input class="rsvp-input" id="companion-name-${index}" data-companion-name minlength="3" maxlength="150" required></p>
+      <p><label for="companion-age-${index}">Adulto ou criança *</label><select class="rsvp-input" id="companion-age-${index}" data-companion-age required><option value="adult">Adulto</option><option value="child">Criança</option></select></p>
+      <p><label for="companion-status-${index}">Estará presente? *</label><select class="rsvp-input" id="companion-status-${index}" data-companion-status required><option value="confirmed">Sim, estará presente</option><option value="declined">Não poderá ir</option></select></p>
+      <button class="rsvp-secondary" type="button" data-remove-companion>Remover acompanhante</button>`;
+    companions.set(index,{row,requestId:crypto.randomUUID()});
+    document.getElementById('registration-companions').appendChild(row);
+    row.querySelector('[data-remove-companion]').onclick=()=>{row.remove();companions.delete(index);addCompanion.disabled=false;document.getElementById('companion-limit').textContent='';};
+    row.querySelector('[data-companion-name]').focus();
+    if(companions.size>=20){addCompanion.disabled=true;document.getElementById('companion-limit').textContent='Para mais de 20 acompanhantes, envie outro cadastro.';}
+  };
   form.onsubmit=async e=>{
     e.preventDefault();
-    const button=form.querySelector('button');
+    const button=form.querySelector('button[type="submit"]');
     const errorRoot=document.getElementById('registration-error');
     const guest=Object.fromEntries(new FormData(form).entries());
     guest.full_name=guest.full_name.trim();
     if(guest.full_name.length<3){errorRoot.textContent='Informe seu nome completo.';return;}
+    const guests=[{request_id:requestId,guest}];
+    if(companions.size){
+      guest.group_name=guest.group_name.trim()||guest.full_name.slice(0,100);
+      for(const {row,requestId:companionRequestId} of companions.values()){
+        const fullName=row.querySelector('[data-companion-name]').value.trim();
+        if(fullName.length<3){errorRoot.textContent='Informe o nome completo de cada acompanhante.';return;}
+        guests.push({request_id:companionRequestId,guest:{full_name:fullName,phone:guest.phone,group_name:guest.group_name,age_group:row.querySelector('[data-companion-age]').value,status:row.querySelector('[data-companion-status]').value}});
+      }
+    }
     button.disabled=true;button.textContent='Enviando...';errorRoot.textContent='';
+    addCompanion.disabled=true;
+    form.querySelectorAll('[data-remove-companion]').forEach(b=>b.disabled=true);
     try{
-      const {data,error}=await sb.rpc('guest_registration_submit',{registration_code:registrationCode,request_id:requestId,guest});
-      if(error||Number(data)!==1) throw error||new Error('Falha ao salvar');
-      app.innerHTML=`<div class="rsvp-shell">${brand()}<section class="rsvp-card">${hero()}<div class="rsvp-content rsvp-success"><div class="heart">♡</div><h2>Cadastro enviado!</h2><p>Seus dados e sua resposta foram enviados à organização do casamento.</p><button class="rsvp-secondary" id="register-another">Cadastrar outra pessoa</button></div></section></div>`;
+      const {data,error}=await sb.rpc('guest_registration_submit_group',{registration_code:registrationCode,guests});
+      if(error||Number(data)!==guests.length) throw error||new Error('Falha ao salvar');
+      app.innerHTML=`<div class="rsvp-shell">${brand()}<section class="rsvp-card">${hero()}<div class="rsvp-content rsvp-success"><div class="heart">♡</div><h2>Cadastro enviado!</h2><p>Seu cadastro e o de seus acompanhantes foram enviados à organização do casamento.</p><button class="rsvp-secondary" id="register-another">Cadastrar outra pessoa</button></div></section></div>`;
       document.getElementById('register-another').onclick=renderRegistration;
-    }catch(error){console.error(error);errorRoot.textContent='Não foi possível enviar. Tente novamente ou confira com a assessoria se o cadastro está aberto.';button.disabled=false;button.textContent='Enviar cadastro';}
+    }catch(error){console.error(error);errorRoot.textContent='Não foi possível enviar. Tente novamente ou confira com a assessoria se o cadastro está aberto.';button.disabled=false;button.textContent='Enviar cadastro';addCompanion.disabled=companions.size>=20;form.querySelectorAll('[data-remove-companion]').forEach(b=>b.disabled=false);}
   };
 }
 
