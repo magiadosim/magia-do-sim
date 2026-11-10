@@ -9,6 +9,7 @@ const registrationCode=params.get('register')||'';
 const weddingCode=registrationCode||params.get('code')||'';
 
 let wedding=null;
+let presentation={};
 let searchResults=[];
 
 function esc(v=''){
@@ -50,8 +51,12 @@ async function loadWedding(){
     renderInvalid();
     return;
   }
-  if(registrationCode) renderRegistration();
-  else renderSearch();
+  const {data:design,error:designError}=await sb.rpc('rsvp_get_presentation',{invitation_code:weddingCode,is_registration:!!registrationCode});
+  if(!designError&&design) presentation=design;
+  document.title=`${wedding.couple_name} — Confirmação de presença`;
+  const themes=['classic','romantic','botanical','modern','coastal'];
+  app.dataset.theme=themes.includes(presentation.rsvp_theme)?presentation.rsvp_theme:'classic';
+  renderEnvelope();
 }
 
 function brand(){
@@ -61,12 +66,29 @@ function brand(){
   </div>`;
 }
 
+function safeUrl(value){
+  if(!value)return '';
+  try{const u=new URL(value,location.href);return ['https:','http:'].includes(u.protocol)?u.href:'';}catch{return '';}
+}
+function monogram(){
+  return (presentation.initials||wedding.couple_name.split(/\s*(?:&| e )\s*/i).map(n=>n.trim()[0]||'').join(' & ')).slice(0,16);
+}
+function renderEnvelope(){
+  app.innerHTML=`<div class="rsvp-shell"><button class="rsvp-envelope" id="open-envelope" aria-label="Abrir convite de ${esc(wedding.couple_name)}"><span class="envelope-heading">VOCÊ FAZ PARTE DA NOSSA HISTÓRIA</span><span class="envelope-names">${esc(wedding.couple_name)}</span><span class="envelope-message">Um convite para celebrar<br>o nosso amor</span><span class="envelope-flap" aria-hidden="true"></span><span class="envelope-seal" aria-hidden="true">${esc(monogram())}</span><span class="envelope-prompt">Toque para abrir <span aria-hidden="true">♡</span></span></button><p class="rsvp-signature">A Magia do Sim</p></div>`;
+  document.getElementById('open-envelope').onclick=()=>{
+    const envelope=document.getElementById('open-envelope');envelope.disabled=true;envelope.classList.add('opening');
+    setTimeout(()=>{renderWelcome();document.getElementById('welcome-title').focus();},matchMedia('(prefers-reduced-motion: reduce)').matches?0:650);
+  };
+}
 function hero(){
-  return `<div class="rsvp-hero">
-    <span class="rsvp-eyebrow">CONFIRMAÇÃO DE PRESENÇA</span>
-    <h1>${esc(wedding.couple_name)}</h1>
-    <p>${esc(dateLong(wedding.wedding_date))}${wedding.venue?` • ${esc(wedding.venue)}`:''}</p>
-  </div>`;
+  return `<div class="rsvp-hero"><span class="rsvp-eyebrow">VAMOS CELEBRAR O AMOR</span><h1>${esc(wedding.couple_name)}</h1><span class="rsvp-ornament" aria-hidden="true">— ♡ —</span><p>${esc(dateLong(wedding.wedding_date))}</p></div>`;
+}
+function renderWelcome(){
+  const photo=safeUrl(presentation.photo_url),directions=safeUrl(presentation.directions_url);
+  const position=Math.max(0,Math.min(100,Number(presentation.photo_position)||50));
+  app.innerHTML=`<div class="rsvp-shell"><section class="rsvp-card rsvp-welcome">${photo?`<img class="rsvp-couple-photo" src="${esc(photo)}" style="object-position:center ${position}%" alt="${esc(wedding.couple_name)}">`:`<div class="rsvp-monogram" aria-hidden="true">${esc(monogram())}</div>`}${hero()}<div class="rsvp-welcome-body"><h2 id="welcome-title" tabindex="-1">Nosso grande dia</h2><p>${esc(presentation.rsvp_message||'Com alegria, convidamos você para celebrar o nosso casamento.')}</p><button class="rsvp-btn" id="confirm-presence">Confirmar presença</button>${wedding.venue?`<section class="rsvp-event"><span class="rsvp-ornament" aria-hidden="true">◇</span><h2>Cerimônia e celebração</h2><p>${esc(wedding.venue)}</p>${presentation.address?`<p>${esc(presentation.address)}</p>`:''}${directions?`<a class="rsvp-secondary" href="${esc(directions)}" target="_blank" rel="noopener noreferrer">Ver localização</a>`:''}</section>`:''}</div></section><p class="rsvp-signature">A Magia do Sim · Onde sonhos se tornam alianças.</p></div>`;
+  const image=app.querySelector('.rsvp-couple-photo');if(image)image.onerror=()=>image.remove();
+  document.getElementById('confirm-presence').onclick=()=>{if(registrationCode){renderRegistration();document.getElementById('register-name').focus();}else{renderSearch();document.getElementById('rsvp-search-input').focus();}};
 }
 
 function renderInvalid(){
@@ -75,14 +97,13 @@ function renderInvalid(){
 
 function renderSearch(message=''){
   app.innerHTML=`<div class="rsvp-shell">
-    ${brand()}
     <section class="rsvp-card">
       ${hero()}
       <div class="rsvp-content">
         <h2>Encontre seu convite ♡</h2>
         <p>Digite seu nome para localizar o convite e confirmar quem estará presente.</p>
         <form class="rsvp-search-form" id="rsvp-search-form">
-          <input class="rsvp-input" id="rsvp-search-input" autocomplete="name" placeholder="Digite seu nome completo ou parte dele" minlength="3" required>
+          <input class="rsvp-input" id="rsvp-search-input" aria-label="Nome do convidado" autocomplete="name" placeholder="Digite seu nome completo ou parte dele" minlength="3" required>
           <button class="rsvp-btn" type="submit">Pesquisar</button>
         </form>
         <p class="rsvp-hint">Digite pelo menos 3 letras. A lista completa de convidados não fica visível.</p>
@@ -215,7 +236,6 @@ async function submitResponses(){
 
 function renderSuccess(){
   app.innerHTML=`<div class="rsvp-shell">
-    ${brand()}
     <section class="rsvp-card">
       ${hero()}
       <div class="rsvp-content">
@@ -236,7 +256,7 @@ function renderRegistration(){
   const requestId=crypto.randomUUID();
   const companions=new Map();
   let companionSequence=0;
-  app.innerHTML=`<div class="rsvp-shell">${brand()}<section class="rsvp-card">${hero()}
+  app.innerHTML=`<div class="rsvp-shell"><section class="rsvp-card">${hero()}
     <div class="rsvp-content"><h2>Preencha seus dados ♡</h2><p>Preencha seus dados e adicione os acompanhantes que irão com você.</p>
     <form id="registration-form">
       <p><label for="register-name">Nome completo *</label><input class="rsvp-input" id="register-name" name="full_name" autocomplete="name" minlength="3" maxlength="150" required></p>
@@ -287,7 +307,7 @@ function renderRegistration(){
     try{
       const {data,error}=await sb.rpc('guest_registration_submit_group',{registration_code:registrationCode,guests});
       if(error||Number(data)!==guests.length) throw error||new Error('Falha ao salvar');
-      app.innerHTML=`<div class="rsvp-shell">${brand()}<section class="rsvp-card">${hero()}<div class="rsvp-content rsvp-success"><div class="heart">♡</div><h2>Cadastro enviado!</h2><p>Seu cadastro e o de seus acompanhantes foram enviados à organização do casamento.</p><button class="rsvp-secondary" id="register-another">Cadastrar outra pessoa</button></div></section></div>`;
+      app.innerHTML=`<div class="rsvp-shell"><section class="rsvp-card">${hero()}<div class="rsvp-content rsvp-success"><div class="heart">♡</div><h2>Cadastro enviado!</h2><p>Seu cadastro e o de seus acompanhantes foram enviados à organização do casamento.</p><button class="rsvp-secondary" id="register-another">Cadastrar outra pessoa</button></div></section></div>`;
       document.getElementById('register-another').onclick=renderRegistration;
     }catch(error){console.error(error);errorRoot.textContent='Não foi possível enviar. Tente novamente ou confira com a assessoria se o cadastro está aberto.';button.disabled=false;button.textContent='Enviar cadastro';addCompanion.disabled=companions.size>=20;form.querySelectorAll('[data-remove-companion]').forEach(b=>b.disabled=false);}
   };
